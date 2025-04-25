@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Noise Dashboard - By Day</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .dashboard-container { display: flex; height: 100vh; }
+        .left-panel { 
+            width: 30%; 
+            padding: 15px; 
+            border-right: 1px solid #ddd; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .center-panel { 
+            width: 70%; 
+            padding: 15px; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .header-section { margin-bottom: 20px; flex-shrink: 0; }
+        .date-selector { display: flex; align-items: center; gap: 20px; }
+        .vehicle-count { 
+            background-color: #f8f9fa; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            border: 1px solid #dee2e6; 
+        }
+        .image-grid { 
+            display: grid; 
+            grid-template-columns: repeat(10, 1fr); 
+            gap: 5px; 
+            overflow-y: auto; 
+            height: calc(100% - 80px); 
+        }
+        .image-grid img { 
+            width: 100%; 
+            height: auto; 
+            object-fit: cover; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            cursor: pointer; 
+        }
+        .image-grid img:hover { 
+            border-color: #007bff; 
+            transform: scale(1.05); 
+        }
+        #graph { 
+            flex-grow: 1; 
+            min-height: 0; 
+        }
+        .nav-buttons { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 10px; 
+            color: white;
+        }
+        .btn{ 
+            color: white;
+            background-color: #1f4c76; 
+        }
+
+
+        .btn:hover{ 
+            color: white;
+            background-color: black; 
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Left Panel (30%) -->
+        <div class="left-panel">
+            <div class="nav-buttons">
+                <a href="/" class="btn btn-secondary">Home</a>
+                <a href="/by_month" class="btn btn-secondary">By Month</a>
+            </div>
+            <h3 style="position: sticky; top: 0; background-color: #fff; z-index: 1; padding-bottom: 10px; margin: 0;">Top 100 Max dBA Images</h3>
+            <div class="image-grid">
+                {% for item in grid_data %}
+                <a href="/view_image/{{ item.traffic_id }}" target="_blank" title="Max dBA: {{ '%.2f'|format(item.max_dba) }}">
+                    <img src="{{ item.image_url }}" alt="Vehicle Image" onerror="this.onerror=null;this.src='https://via.placeholder.com/100x100?text=Image+Not+Available';">
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Center Panel (70%) -->
+        <div class="center-panel">
+            <div class="header-section">
+                <h2>Traffic Noise Analysis - By Day</h2>
+                <div class="date-selector">
+                    <h4>Select a Date:</h4>
+                    <select id="date-select" class="form-select" style="width: 200px;">
+                        <option value="default" {% if not selected_date %}selected{% endif %}>-- Select a date --</option>
+                        {% for date in all_dates %}
+                        <option value="{{ date }}" {% if date == selected_date %}selected{% endif %}>{{ date }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="vehicle-count">
+                        <strong>Vehicle Count:</strong> <span id="vehicle-count">{{ vehicle_count }}</span>
+                    </div>
+                </div>
+            </div>
+            <div id="graph"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize the plot with the initial graphJSON
+        let initialGraphJSON = '{{ graphJSON|safe }}';
+        let initialGraphData = JSON.parse(initialGraphJSON);
+        Plotly.newPlot('graph', initialGraphData.data, initialGraphData.layout);
+
+        // Handle date selection change
+        document.getElementById('date-select').addEventListener('change', function() {
+            const selectedDate = this.value;
+            
+            fetch('/update_day_data', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: `date=${selectedDate}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Update vehicle count (center panel)
+                document.getElementById('vehicle-count').textContent = data.vehicle_count;
+
+                // Update plot
+                const graphData = JSON.parse(data.graphJSON);
+                Plotly.newPlot('graph', graphData.data, graphData.layout);
+
+                // Reload page with selected date to update image grid
+                window.location.href = `/by_day?date=${selectedDate}`;
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+</html>
